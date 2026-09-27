@@ -1,0 +1,29 @@
+name: Build and test
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  macos:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: vendor/FreeASR/go.mod
+          cache-dependency-path: vendor/FreeASR/go.sum
+      - name: Install build dependencies
+        run: brew install opus pkg-config
+      - name: Test
+        run: bash scripts/test.sh
+      - name: Build
+        run: bash scripts/build.sh
+      - name: Package
+        run: bash scripts/package.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Voice-Pill-arm64
+          path: dist/*

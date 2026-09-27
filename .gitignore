@@ -1,0 +1,16 @@
+build/
+dist/
+.signing/
+.DS_Store
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.keychain-db
+credentials*.json
+*-credentials.json
+*.wav
+*.m4a
+*.mp3
+*.log

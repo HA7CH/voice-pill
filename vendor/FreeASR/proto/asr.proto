@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package asr;
+
+option go_package = "github.com/WEIFENG2333/FreeASR/internal/pb";
+
+// ASR WebSocket request message.
+message AsrRequest {
+  string token = 2;
+  string service_name = 3;
+  string method_name = 5;
+  string payload = 6;
+  bytes audio_data = 7;
+  string request_id = 8;
+  FrameState frame_state = 9;
+}
+
+// ASR WebSocket response message.
+message AsrResponse {
+  string request_id = 1;
+  string task_id = 2;
+  string service_name = 3;
+  string message_type = 4;
+  int32 status_code = 5;
+  string status_message = 6;
+  string result_json = 7;
+  int32 unknown_field_9 = 9;
+}
+
+// Audio frame state.
+enum FrameState {
+  FRAME_STATE_UNSPECIFIED = 0;
+  FRAME_STATE_FIRST = 1;
+  FRAME_STATE_MIDDLE = 3;
+  FRAME_STATE_LAST = 9;
+}

@@ -1,0 +1,9 @@
+freeasr
+freeasr-*
+*.exe
+credentials.json
+*.wav
+*.mp3
+*.m4a
+*.flac
+coverage.out

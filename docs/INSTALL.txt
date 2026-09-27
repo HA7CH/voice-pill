@@ -1,0 +1,28 @@
+Voice Pill · Quick Install
+
+Requires Apple Silicon (M1 or newer), macOS 26 or newer, and internet access.
+
+1. Drag Voice Pill.app to Applications. Eject this disk image.
+2. Open Voice Pill from Applications.
+3. This community build is ad-hoc signed, not Apple-notarized. If macOS blocks it,
+   use System Settings > Privacy & Security > Open Anyway, only if you trust
+   the release from https://github.com/HA7CH/voice-pill.
+   Do not disable Gatekeeper globally.
+4. Enable Voice Pill in Privacy & Security > Accessibility. Allow Microphone
+   on first recording. Quit/reopen Voice Pill after granting Accessibility.
+5. Keyboard > Press globe key to > Do Nothing.
+6. Put your cursor in an input field, hold Fn, speak, then release to paste.
+
+No menu-bar or Dock icon is shown. Reopen Voice Pill from Applications for
+settings, saved recordings / Retry, or Quit.
+
+Doubao is included and needs no Homebrew, API key, or Codex setup. It uses an
+unofficial third-party service which can change or stop working. Audio is sent
+to Doubao only after your in-app consent. Codex (Ctrl+Fn) is optional: see README.
+
+Failed recordings stay on this Mac until successfully retried or manually
+removed. Replacing this ad-hoc-signed build may require granting Accessibility
+again. Existing local-development users should keep their established signing
+identity instead of replacing it with this download.
+
+中文说明：https://github.com/HA7CH/voice-pill#快速安装
