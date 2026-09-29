@@ -16,9 +16,11 @@ Requires Apple Silicon (M1 or newer), macOS 26 or newer, and internet access.
 No menu-bar or Dock icon is shown. Reopen Voice Pill from Applications for
 settings, saved recordings / Retry, or Quit.
 
-Doubao is included and needs no Homebrew, API key, or Codex setup. It uses an
-unofficial third-party service which can change or stop working. Audio is sent
-to Doubao only after your in-app consent. Codex (Ctrl+Fn) is optional: see README.
+Codex and Doubao live transcription are included. Default: Codex, using your
+existing Codex ChatGPT login. Reopen settings and choose Speech provider to
+switch to Doubao. Ctrl+Fn always uses Codex. No paid API key is required.
+Audio goes to the selected service only after your in-app consent. Both use
+unofficial interfaces which may change or stop working.
 
 Failed recordings stay on this Mac until successfully retried or manually
 removed. Replacing this ad-hoc-signed build may require granting Accessibility

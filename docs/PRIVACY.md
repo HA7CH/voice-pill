@@ -3,7 +3,7 @@
 Voice Pill records only after its recording shortcut or explicit microphone setup action. The nonactivating HUD leaves keyboard focus in your original app.
 
 - **Doubao:** microphone PCM is sent through the unofficial Doubao IME protocol, using device registration/settings endpoints from ByteDance and its ASR WebSocket. Registration creates synthetic device identifiers stored locally. No paid API key is configured. The provider controls remote processing and retention; Voice Pill cannot promise remote deletion.
-- **Codex (optional):** a separately installed `codex-asr` reads your local Codex sign-in and sends the audio to ChatGPT's transcription endpoint. Voice Pill does not ship or upload your Codex credentials to HA7CH.
+- **Codex (default):** the bundled experimental `codex-asr` reads your local Codex sign-in and streams audio to ChatGPT's internal dictation WebSocket. On stream failure, the full saved recording is submitted to the existing HTTP transcription endpoint after release. Voice Pill does not ship or upload your Codex credentials to HA7CH.
 - **HA7CH:** no speech proxy, cloud storage, application analytics, or automatic crash-report uploads are implemented.
 - **Accessibility:** used to observe the dictation shortcut, remember the destination control, paste text and check insertion. The clipboard is temporarily changed during paste and restored when safe. Some apps cannot expose their text for verification.
 

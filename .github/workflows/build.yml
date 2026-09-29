@@ -16,7 +16,7 @@ jobs:
           go-version-file: vendor/FreeASR/go.mod
           cache-dependency-path: vendor/FreeASR/go.sum
       - name: Install build dependencies
-        run: brew install opus pkg-config
+        run: brew install opus pkg-config rust
       - name: Test
         run: bash scripts/test.sh
       - name: Build

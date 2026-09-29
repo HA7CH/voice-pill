@@ -16,4 +16,5 @@ for file in app.rglob('*'):
             raise SystemExit('Missing bundled dependency: ' + dep)
 subprocess.run(['codesign','--verify','--deep','--strict', str(app)], check=True)
 subprocess.run([str(app/'Contents/Resources/freeasr'), 'version'], env={'PATH':'/usr/bin:/bin'}, check=True)
+subprocess.run([str(app/'Contents/Resources/codex-asr'), 'stream', '--help'], env={'PATH':'/usr/bin:/bin'}, check=True, stdout=subprocess.DEVNULL)
 print('PASS: portable libraries, helper launch, signature and no private artifacts')

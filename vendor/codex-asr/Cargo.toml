@@ -1,0 +1,45 @@
+[package]
+name = "codex-asr"
+version = "0.1.3-stream.1"
+edition = "2021"
+rust-version = "1.82"
+description = "Unofficial Codex Desktop ASR client that reuses local ChatGPT auth for one-shot transcription"
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/wangnov/codex-asr"
+homepage = "https://github.com/wangnov/codex-asr"
+documentation = "https://docs.rs/codex-asr"
+keywords = ["codex", "asr", "speech", "transcription", "chatgpt"]
+categories = ["command-line-utilities", "api-bindings"]
+
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ target }{ archive-suffix }"
+bin-dir = "{ name }-{ target }/{ bin }{ binary-ext }"
+pkg-fmt = "txz"
+
+[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
+bin-dir = "{ bin }{ binary-ext }"
+pkg-fmt = "zip"
+
+[features]
+default = ["server", "streaming"]
+server = ["dep:axum", "dep:tokio"]
+streaming = ["dep:tokio", "dep:tokio-tungstenite", "dep:futures-util"]
+
+[dependencies]
+axum = { version = "0.8.7", features = ["multipart"], optional = true }
+base64 = "0.22.1"
+clap = { version = "4.5.51", features = ["derive"] }
+reqwest = { version = "0.12.24", default-features = false, features = ["blocking", "json", "multipart", "rustls-tls"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
+tempfile = "3.23.0"
+thiserror = "2.0.17"
+tokio = { version = "1.48.0", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time", "io-util"], optional = true }
+tokio-tungstenite = { version = "0.28.0", features = ["rustls-tls-native-roots"], optional = true }
+futures-util = { version = "0.3", features = ["sink"], optional = true }
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"

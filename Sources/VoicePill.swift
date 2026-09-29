@@ -83,7 +83,7 @@ final class VoiceModel: NSObject, ObservableObject, AVAudioRecorderDelegate {
         return recordingFolder
     }
     func saveBackend(for url: URL) {
-        try? (recordingBackend ?? "doubao").write(to: url.appendingPathExtension("backend"), atomically: true, encoding: .utf8)
+        try? (recordingBackend ?? "codex").write(to: url.appendingPathExtension("backend"), atomically: true, encoding: .utf8)
     }
     func retryRecording(_ url: URL) {
         guard !busy else { return }
@@ -115,7 +115,13 @@ final class VoiceModel: NSObject, ObservableObject, AVAudioRecorderDelegate {
         case .failed: return transcript.isEmpty ? "Transcription failed" : "Could not paste"
         }
     }
-    var usesDoubao: Bool { (recordingBackend ?? UserDefaults.standard.string(forKey: "transcriptionBackend") ?? "doubao") == "doubao" }
+    var usesDoubao: Bool { (recordingBackend ?? UserDefaults.standard.string(forKey: "fnBackend") ?? "codex") == "doubao" }
+    var liveProvider: LiveProvider? { LiveProvider(rawValue: recordingBackend ?? UserDefaults.standard.string(forKey: "fnBackend") ?? "codex") }
+    var usesLiveCaptions: Bool { liveProvider != nil }
+    func binaryPath(_ name: String) -> String? {
+        let candidates = [Bundle.main.resourcePath.map { $0 + "/" + name } ?? "", "/opt/homebrew/bin/" + name, "/usr/local/bin/" + name, NSHomeDirectory() + "/.cargo/bin/" + name, NSHomeDirectory() + "/.local/bin/" + name]
+        return candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) })
+    }
     var usesWeType: Bool { recordingBackend == "wetype" }
     func confirmUpload() -> Bool {
         let key = usesWeType ? "wetypeUploadConsent" : (usesDoubao ? "doubaoUploadConsent" : "uploadConsent")
@@ -134,7 +140,7 @@ final class VoiceModel: NSObject, ObservableObject, AVAudioRecorderDelegate {
     func toggle(backend: String? = nil) {
         if phase == .recording { stop(); return }
         guard !busy else { return }
-        recordingBackend = backend ?? UserDefaults.standard.string(forKey: "transcriptionBackend") ?? "doubao"
+        recordingBackend = backend ?? UserDefaults.standard.string(forKey: "fnBackend") ?? "codex"
         captureTarget()
         guard confirmUpload() else { return }
         phase = .requesting
@@ -147,16 +153,16 @@ final class VoiceModel: NSObject, ObservableObject, AVAudioRecorderDelegate {
         }
     }
     func beginLive() {
+        guard let provider = liveProvider, let binary = binaryPath(provider.binaryName) else { fail("Missing live transcription backend"); return }
         do {
             let folder = try prepareRecording()
             let url = folder.appendingPathComponent(UUID().uuidString + ".wav")
             audioURL = url
             saveBackend(for: url)
-            guard let binary = Bundle.main.path(forResource: "freeasr", ofType: nil) else { fail("Missing FreeASR"); return }
             let token = session
             let stream = LiveTranscriber(); live = stream; liveNeedsRetry = false
             liveText = ""; transcript = ""; message = ""; seconds = 0; started = Date()
-            try stream.start(binary: binary, recording: url, punctuation: UserDefaults.standard.bool(forKey: "doubaoPunctuation"), update: { [weak self] text in
+            try stream.start(binary: binary, provider: provider, recording: url, punctuation: UserDefaults.standard.bool(forKey: "doubaoPunctuation"), update: { [weak self] text in
                 guard let self, self.session == token else { return }
                 self.liveText = text
             }, completion: { [weak self] result in
@@ -183,13 +189,13 @@ final class VoiceModel: NSObject, ObservableObject, AVAudioRecorderDelegate {
                 Task { @MainActor in
                     guard let self, self.phase == .recording else { return }
                     self.seconds = Int(Date().timeIntervalSince(self.started))
-                    // Doubao capture ends only on release or explicit cancellation.
+                    // Keep recording through a stream disconnect; release retries the full WAV.
                 }
             }
         } catch { live?.cancel(); live = nil; fail(error.localizedDescription) }
     }
     func begin() {
-        if usesDoubao { beginLive(); return }
+        if usesLiveCaptions { beginLive(); return }
         liveText = ""
         do {
             // Remove only an earlier recording owned by this app when starting afresh.
@@ -238,10 +244,11 @@ final class VoiceModel: NSObject, ObservableObject, AVAudioRecorderDelegate {
         guard Date().timeIntervalSince(started) > 0.35 else { cancel(); return }
         if let live {
             phase = .transcribing; transcriptionStarted = Date(); live.finish()
-            if liveNeedsRetry { self.live = nil; transcribe(); return }
+            if liveNeedsRetry { session = UUID(); live.cancel(); self.live = nil; transcribe(); return }
             let token = session
+            let finishTimeout = liveProvider?.finishTimeout ?? 35
             Task { @MainActor in
-                try? await Task.sleep(for: .seconds(35))
+                try? await Task.sleep(for: .seconds(finishTimeout))
                 guard session == token, phase == .transcribing, self.live != nil else { return }
                 session = UUID(); self.live?.cancel(); self.live = nil
                 transcribe()
@@ -271,8 +278,7 @@ final class VoiceModel: NSObject, ObservableObject, AVAudioRecorderDelegate {
         let doubao = usesDoubao
         let wetype = usesWeType
         let name = wetype ? "wetype-asr" : doubao ? "freeasr" : "codex-asr"
-        let candidates = [Bundle.main.resourcePath.map { $0 + "/" + name } ?? "", "/opt/homebrew/bin/" + name, "/usr/local/bin/" + name, NSHomeDirectory() + "/.cargo/bin/" + name, NSHomeDirectory() + "/.local/bin/" + name]
-        guard let binary = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else { fail("Missing transcription backend: " + name); return }
+        guard let binary = binaryPath(name) else { fail("Missing transcription backend: " + name); return }
         phase = .transcribing
         transcriptionStarted = Date()
         let token = UUID(); session = token
@@ -419,8 +425,7 @@ final class PermissionStatus: ObservableObject {
 struct DetailsView: View {
     @ObservedObject var model: VoiceModel
     @AppStorage("autoPaste") var autoPaste = true
-    @AppStorage("transcriptionBackend") var transcriptionBackend = "doubao"
-    @AppStorage("fnBackend") var fnBackend = "doubao"
+    @AppStorage("fnBackend") var fnBackend = "codex"
     @AppStorage("doubaoPunctuation") var doubaoPunctuation = false
     @StateObject private var permission = PermissionStatus()
     private let permissionPoll = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -437,15 +442,12 @@ struct DetailsView: View {
             }
             Divider()
             Text("Place the cursor in a text field. Hold Fn for the selected provider, or Ctrl + Fn for Codex. Release to paste. A quick tap does not record. Text is pasted into the app where you started. Alternative shortcut: ⌃⌥Space.").foregroundStyle(.secondary)
-            Picker("Hold Fn", selection: $fnBackend) {
+            Picker("Speech provider", selection: $fnBackend) {
+                Text("Codex · Live captions").tag("codex")
                 Text("Doubao · Live captions").tag("doubao")
             }.disabled(model.busy)
-            Text("Ctrl + Fn always uses Codex.").font(.caption).foregroundStyle(.secondary)
-            Picker("Alternate shortcut", selection: $transcriptionBackend) {
-                Text("Doubao · Unofficial IME").tag("doubao")
-                Text("Codex").tag("codex")
-            }.disabled(model.busy)
-            Toggle("Doubao automatic punctuation", isOn: $doubaoPunctuation).disabled(model.busy)
+            Text("Fn and ⌃⌥Space use the selected provider. Ctrl + Fn always uses Codex live captions.").font(.caption).foregroundStyle(.secondary)
+            if fnBackend == "doubao" { Toggle("Doubao automatic punctuation", isOn: $doubaoPunctuation).disabled(model.busy) }
             Toggle("Automatically paste after transcription", isOn: $autoPaste)
             HStack {
                 Button("Allow Accessibility…") {
@@ -487,7 +489,7 @@ struct DetailsView: View {
             if !model.timingSummary.isEmpty { Text(model.timingSummary).font(.caption).foregroundStyle(.secondary) }
             Button("Quit Voice Pill") { model.shutdown(); NSApp.terminate(nil) }.disabled(model.busy)
             Spacer(minLength: 0)
-            Text(fnBackend == "wetype" ? "Fn: WeType experimental · recordings are sent to WeChat Input through dicta-asr. Ctrl + Fn: Codex. No paid API key configured." : transcriptionBackend == "doubao" ? "Powered by FreeASR · unofficial Doubao IME protocol. Audio is processed by Doubao. No paid API key required. Temporary audio is deleted after success." : "Powered by codex-asr. Audio is sent to ChatGPT using your local Codex sign-in. Temporary audio is deleted after success.")
+            Text(fnBackend == "wetype" ? "Fn: WeType experimental · recordings are sent to WeChat Input through dicta-asr. Ctrl + Fn: Codex. No paid API key configured." : fnBackend == "doubao" ? "Powered by FreeASR · unofficial Doubao IME protocol. Audio is processed by Doubao. No paid API key required. Temporary audio is deleted after success." : "Powered by codex-asr. Audio is sent to ChatGPT using your local Codex sign-in. Temporary audio is deleted after success.")
                 .font(.caption).foregroundStyle(.secondary)
         }.padding(28) }.frame(width: 480, height: 610)
         .onReceive(permissionPoll) { _ in permission.trusted = AXIsProcessTrusted() }
@@ -542,7 +544,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard !Task.isCancelled, let self, self.fnHeld else { return }
                 self.fnRecording = true
                 self.showPill()
-                self.model.toggle(backend: self.fnCodex ? "codex" : (UserDefaults.standard.string(forKey: "fnBackend") ?? "doubao"))
+                self.model.toggle(backend: self.fnCodex ? "codex" : (UserDefaults.standard.string(forKey: "fnBackend") ?? "codex"))
                 if !self.fnHeld && self.model.phase == .requesting { self.model.cancel() }
             }
         } else {
@@ -600,7 +602,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let result = RegisterEventHotKey(UInt32(kVK_Space), UInt32(controlKey | optionKey), EventHotKeyID(signature: 0x5650494C, id: 1), GetApplicationEventTarget(), 0, &hotKey)
         if result != noErr { model.fail("Could not register the shortcut. It may be used by another app. Use Fn to start recording.") }
         NotificationCenter.default.addObserver(self, selector: #selector(position), name: NSApplication.didChangeScreenParametersNotification, object: nil)
-        if !UserDefaults.standard.bool(forKey: "doubaoUploadConsent") || CommandLine.arguments.contains("--show-settings") { openDetails() }
+        if !UserDefaults.standard.bool(forKey: model.usesDoubao ? "doubaoUploadConsent" : "uploadConsent") || CommandLine.arguments.contains("--show-settings") { openDetails() }
         if CommandLine.arguments.contains("--preview-pill") {
             model.captureTarget()
             showPill()
@@ -612,11 +614,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func runInputTest() {
         Task { @MainActor in
             var report = "AX trusted: \(AXIsProcessTrusted())\n"
-            guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: "com.lawted.voicepill.inputtest").first else { return }
+            defer { try? report.write(toFile: "/tmp/voice-pill-input-test.txt", atomically: true, encoding: .utf8) }
+            try? await Task.sleep(for: .milliseconds(800))
+            guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: "com.lawted.voicepill.inputtest").first else { report += "FAIL: test fixture not running\n"; return }
             app.activate(options: [])
             try? await Task.sleep(for: .milliseconds(500))
             model.captureTarget()
-            guard model.target?.processIdentifier == app.processIdentifier else { return }
+            guard model.target?.processIdentifier == app.processIdentifier else { report += "UNVERIFIED: test fixture did not become the focused target\n"; return }
             let element = model.targetElement
             for (index, text) in ["原生输入验证成功。", "粘贴事件验证成功。"].enumerated() {
                 if index == 1 { model.targetElement = nil }
@@ -638,14 +642,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func position() { hud.reposition() }
     @objc func toggle() { showPill(); model.toggle() }
     private func updateHUD(force: Bool = false) {
-        let signature = "\(model.phase)|\(model.recordingBackend ?? "doubao")|\(model.liveText)"
+        let signature = "\(model.phase)|\(model.recordingBackend ?? "codex")|\(model.liveText)"
         if force || signature != hudSignature {
             hudSignature = signature
-            let content: PillContent = model.usesDoubao ? .transcript : .waveform
+            let content: PillContent = model.usesLiveCaptions ? .transcript : .waveform
             if HUDTuning.shared.content != content { HUDTuning.shared.content = content }
             hud.setContext(app: model.lastExternalApp, icon: model.targetIcon)
             switch model.phase {
-            case .recording: hud.show(.listening, partial: model.usesDoubao ? model.liveText : "")
+            case .recording: hud.show(.listening, partial: model.usesLiveCaptions ? model.liveText : "")
             case .requesting: hud.show(.info, message: "Preparing microphone")
             case .transcribing: hud.show(.thinking)
             default:

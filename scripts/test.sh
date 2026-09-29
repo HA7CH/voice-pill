@@ -9,4 +9,8 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 swiftc Sources/StreamPipe.swift tests/StreamPipeTests.swift -o "$work/stream-test"
 "$work/stream-test"
+swiftc Sources/LiveProtocol.swift tests/LiveProtocolTests.swift -o "$work/protocol-test"
+"$work/protocol-test"
+swiftc Sources/LiveProtocol.swift Sources/LiveTranscriptionSession.swift Sources/StreamPipe.swift tests/LiveSessionTests.swift -o "$work/session-test"
+"$work/session-test"
 (cd vendor/FreeASR && go test -tags nolibopusfile ./...)
