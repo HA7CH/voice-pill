@@ -164,7 +164,7 @@ final class VoiceModel: NSObject, ObservableObject, AVAudioRecorderDelegate {
             liveText = ""; transcript = ""; message = ""; seconds = 0; started = Date()
             try stream.start(binary: binary, provider: provider, recording: url, punctuation: UserDefaults.standard.bool(forKey: "doubaoPunctuation"), update: { [weak self] text in
                 guard let self, self.session == token else { return }
-                self.liveText = text
+                self.updateCaption(text)
             }, completion: { [weak self] result in
                 guard let self, self.session == token else { return }
                 // A dropped network stream must not stop the microphone.
@@ -180,7 +180,7 @@ final class VoiceModel: NSObject, ObservableObject, AVAudioRecorderDelegate {
                 case .success(let text):
                     guard self.phase == .transcribing else { self.fail("Speech session ended before you released Fn. Please retry."); return }
                     self.transcriptionElapsed = Date().timeIntervalSince(self.transcriptionStarted)
-                    self.transcript = text; self.discardAudio(); self.deliver(text)
+                    self.finishTranscription(text)
                 case .failure: self.transcribe()
                 }
             })
@@ -327,7 +327,7 @@ final class VoiceModel: NSObject, ObservableObject, AVAudioRecorderDelegate {
                         self.fail(detail.isEmpty ? "No speech was recognized. The recording is saved for retry." : String(detail.prefix(1600))); return
                     }
                     self.transcriptionElapsed = Date().timeIntervalSince(self.transcriptionStarted)
-                    self.transcript = text; self.discardAudio(); self.deliver(text)
+                    self.finishTranscription(text)
                 }
             }
             process = job
@@ -345,6 +345,14 @@ final class VoiceModel: NSObject, ObservableObject, AVAudioRecorderDelegate {
             try? FileManager.default.removeItem(at: out); try? FileManager.default.removeItem(at: err)
             fail(error.localizedDescription)
         }
+    }
+    func updateCaption(_ text: String) {
+        liveText = text
+    }
+    func finishTranscription(_ text: String) {
+        transcript = text
+        discardAudio()
+        deliver(text)
     }
     func copyTranscript() {
         NSPasteboard.general.clearContents(); NSPasteboard.general.setString(transcript, forType: .string)
@@ -616,24 +624,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             var report = "AX trusted: \(AXIsProcessTrusted())\n"
             defer { try? report.write(toFile: "/tmp/voice-pill-input-test.txt", atomically: true, encoding: .utf8) }
             try? await Task.sleep(for: .milliseconds(800))
-            guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: "com.lawted.voicepill.inputtest").first else { report += "FAIL: test fixture not running\n"; return }
+            let inputBundle = CommandLine.arguments.first(where: { $0.hasPrefix("--verify-input-bundle=") })?.replacingOccurrences(of: "--verify-input-bundle=", with: "") ?? "com.lawted.voicepill.inputtest"
+            guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: inputBundle).first else { report += "FAIL: test fixture not running\n"; return }
             app.activate(options: [])
             try? await Task.sleep(for: .milliseconds(500))
             model.captureTarget()
             guard model.target?.processIdentifier == app.processIdentifier else { report += "UNVERIFIED: test fixture did not become the focused target\n"; return }
             let element = model.targetElement
-            for (index, text) in ["原生输入验证成功。", "粘贴事件验证成功。"].enumerated() {
+            let phrases = ["Hello,我是Lotte。", "The chicks will hatch tomorrow."]
+            for (index, text) in phrases.enumerated() {
                 if index == 1 { model.targetElement = nil }
-                model.transcript = text
-                model.deliver(text)
+                model.updateCaption(text)
+                report += "caption \(index): \(model.liveText == text ? "PASS" : "FAIL")\n"
+                model.phase = .transcribing
+                model.finishTranscription(text)
                 for _ in 0..<40 {
                     try? await Task.sleep(for: .milliseconds(100))
-                    if model.phase != .inserting { break }
+                    if !model.busy { break }
                 }
                 try? await Task.sleep(for: .milliseconds(200))
                 var value: CFTypeRef?
                 if let element { _ = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &value) }
-                let received = (value as? String ?? "").contains(text)
+                let received = (value as? String ?? "").contains(text) && model.transcript == text
                 report += "test \(index): \(received ? "PASS" : "FAIL") path=\(model.message) \(model.timingSummary)\n"
             }
             try? report.write(toFile: "/tmp/voice-pill-input-test.txt", atomically: true, encoding: .utf8)

@@ -2,6 +2,8 @@
 
 Native macOS hold-to-talk dictation with Liquid Glass, live captions and automatic insertion into the original app. No menu-bar or Dock icon.
 
+Version **0.2.3** supports switchable Codex / Doubao live transcription. Captions and pasted text use the provider's output directly, without installing or running a local correction model.
+
 ## Install
 
 Apple Silicon, macOS 26+, internet required. This initial build was checked on macOS 27; real microphone behavior on macOS 26 is not yet verified.
