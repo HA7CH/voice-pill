@@ -7,6 +7,8 @@ export MACOSX_DEPLOYMENT_TARGET=26.0
 bash scripts/test-bridge.sh
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
+swiftc Sources/DeliverySession.swift tests/DeliverySessionTests.swift -o "$work/delivery-test"
+"$work/delivery-test"
 swiftc Sources/StreamPipe.swift tests/StreamPipeTests.swift -o "$work/stream-test"
 "$work/stream-test"
 swiftc Sources/LiveProtocol.swift tests/LiveProtocolTests.swift -o "$work/protocol-test"

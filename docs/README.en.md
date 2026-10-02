@@ -2,7 +2,7 @@
 
 Native macOS hold-to-talk dictation with Liquid Glass, live captions and automatic insertion into the original app. No menu-bar or Dock icon.
 
-Version **0.2.3** supports switchable Codex / Doubao live transcription. Captions and pasted text use the provider's output directly, without installing or running a local correction model.
+Version **0.2.4** supports switchable Codex / Doubao live transcription. Captions and pasted text use the provider's output directly, without installing or running a local correction model.
 
 ## Install
 

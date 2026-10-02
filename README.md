@@ -4,7 +4,7 @@
 
 一个轻量的 macOS 原生语音输入工具。Liquid Glass 胶囊、实时字幕、自动粘贴；没有菜单栏图标，也没有 Dock 常驻图标。
 
-当前版本 **0.2.3**：支持 Codex／豆包实时转写切换，字幕和最终输入直接使用识别结果，不安装或运行本地纠正模型。
+当前版本 **0.2.4**：支持 Codex／豆包实时转写切换，字幕和最终输入直接使用识别结果，不安装或运行本地纠正模型。
 
 [**下载安装包**](https://github.com/HA7CH/voice-pill/releases/latest) · [English guide](docs/README.en.md) · [隐私说明](docs/PRIVACY.md) · [开源许可](LICENSE)
 

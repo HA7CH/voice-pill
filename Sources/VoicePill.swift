@@ -26,7 +26,9 @@ enum Phase: Equatable { case idle, requesting, recording, transcribing, insertin
 
 @MainActor
 final class VoiceModel: NSObject, ObservableObject, AVAudioRecorderDelegate {
-    @Published var phase: Phase = .idle
+    @Published var phase: Phase = .idle {
+        didSet { if phase != oldValue { trace("phase_changed") } }
+    }
     @Published var seconds = 0
     @Published var levels: [CGFloat] = Array(repeating: 0, count: 19)
     private var smoothedLevel: CGFloat = 0
@@ -372,52 +374,65 @@ final class VoiceModel: NSObject, ObservableObject, AVAudioRecorderDelegate {
         let token = session
         let deliveryStarted = Date()
         Task { @MainActor in
-            let wasActive = target.isActive
-            if !wasActive { target.activate(options: []) }
-            for _ in 0..<20 {
-                if target.isActive { break }
-                try? await Task.sleep(for: .milliseconds(50))
-                guard session == token else { return }
-            }
-            guard session == token, target.isActive else {
-                fail("Could not switch to \(destination). Focus the original text field and retry."); return
-            }
-            var focusChanged = !wasActive
-            if let element = targetElement {
-                var focused: CFTypeRef?
-                _ = AXUIElementCopyAttributeValue(AXUIElementCreateApplication(target.processIdentifier), kAXFocusedUIElementAttribute as CFString, &focused)
-                if focused == nil || !CFEqual(element, focused!) {
-                    _ = AXUIElementSetAttributeValue(element, kAXFocusedAttribute as CFString, kCFBooleanTrue)
-                    focusChanged = true
+            await DeliverySession.run(isCurrent: { self.session == token && self.phase == .inserting }, interrupted: { reason in
+                self.trace(reason == .timedOut ? "paste_timeout" : "paste_interrupted")
+                self.session = UUID()
+                self.fail("Paste was interrupted or timed out. Your text is saved. Focus the original text field and retry.")
+            }) {
+                let wasActive = target.isActive
+                if !wasActive { target.activate(options: []) }
+                for _ in 0..<20 {
+                    if target.isActive { break }
+                    try? await Task.sleep(for: .milliseconds(50))
+                    guard session == token, phase == .inserting else { return }
                 }
-            }
-            if focusChanged { try? await Task.sleep(for: .milliseconds(120)) }
-            guard session == token, target.isActive else { return }
-            do {
-                try await PasteController.paste(text, targetPID: target.processIdentifier)
-            } catch {
-                fail(error.localizedDescription); return
-            }
-            // Read back promptly; slow editors get up to 600 ms, fast ones don't wait.
-            var confirmed = false
-            for _ in 0..<12 {
-                var value: CFTypeRef?
-                let appElement = AXUIElementCreateApplication(target.processIdentifier)
-                var focus: CFTypeRef?
-                if AXUIElementCopyAttributeValue(appElement, kAXFocusedUIElementAttribute as CFString, &focus) == .success,
-                   let focus, CFGetTypeID(focus) == AXUIElementGetTypeID() {
-                    _ = AXUIElementCopyAttributeValue(focus as! AXUIElement, kAXValueAttribute as CFString, &value)
+                guard session == token, phase == .inserting else { return }
+                guard target.isActive else {
+                    fail("Could not switch to \(destination). Focus the original text field and retry."); return
                 }
-                if let content = value as? String, content.contains(text) { confirmed = true; break }
-                try? await Task.sleep(for: .milliseconds(50))
-                guard session == token else { return }
-            }
-            let deliveryElapsed = Date().timeIntervalSince(deliveryStarted)
-            timingSummary = String(format: "Last run: transcription %.2f s · paste %.2f s", transcriptionElapsed, deliveryElapsed)
-            if confirmed {
-                message = "Pasted"; phase = .done
-            } else {
-                fail("Paste was sent, but delivery could not be confirmed. Focus an editable text field and retry. Your text is saved.")
+                var focusChanged = !wasActive
+                if let element = targetElement {
+                    var focused: CFTypeRef?
+                    _ = AXUIElementCopyAttributeValue(AXUIElementCreateApplication(target.processIdentifier), kAXFocusedUIElementAttribute as CFString, &focused)
+                    if focused == nil || !CFEqual(element, focused!) {
+                        _ = AXUIElementSetAttributeValue(element, kAXFocusedAttribute as CFString, kCFBooleanTrue)
+                        focusChanged = true
+                    }
+                }
+                if focusChanged { try? await Task.sleep(for: .milliseconds(120)) }
+                guard session == token, phase == .inserting else { return }
+                guard target.isActive else {
+                    trace("paste_focus_lost")
+                    fail("The original app lost focus before paste. Your text is saved. Focus the text field and retry."); return
+                }
+                do {
+                    try await PasteController.paste(text, targetPID: target.processIdentifier)
+                } catch {
+                    guard session == token, phase == .inserting else { return }
+                    fail(error.localizedDescription); return
+                }
+                guard session == token, phase == .inserting else { return }
+                // Read back promptly; slow editors get up to 600 ms, fast ones don't wait.
+                var confirmed = false
+                for _ in 0..<12 {
+                    var value: CFTypeRef?
+                    let appElement = AXUIElementCreateApplication(target.processIdentifier)
+                    var focus: CFTypeRef?
+                    if AXUIElementCopyAttributeValue(appElement, kAXFocusedUIElementAttribute as CFString, &focus) == .success,
+                       let focus, CFGetTypeID(focus) == AXUIElementGetTypeID() {
+                        _ = AXUIElementCopyAttributeValue(focus as! AXUIElement, kAXValueAttribute as CFString, &value)
+                    }
+                    if let content = value as? String, content.contains(text) { confirmed = true; break }
+                    try? await Task.sleep(for: .milliseconds(50))
+                    guard session == token, phase == .inserting else { return }
+                }
+                let deliveryElapsed = Date().timeIntervalSince(deliveryStarted)
+                timingSummary = String(format: "Last run: transcription %.2f s · paste %.2f s", transcriptionElapsed, deliveryElapsed)
+                if confirmed {
+                    message = "Pasted"; phase = .done
+                } else {
+                    fail("Paste was sent, but delivery could not be confirmed. Focus an editable text field and retry. Your text is saved.")
+                }
             }
         }
     }
