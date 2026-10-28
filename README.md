@@ -1,5 +1,8 @@
 # Voice Pill
 
+v0.2.5：黑白应用图标、大图标拖拽安装界面；App 已通过 Developer ID 签名与 Apple 公证。
+
+
 **按住 Fn，说完松手，文字就落在光标所在的位置。**
 
 一个轻量的 macOS 原生语音输入工具。Liquid Glass 胶囊、实时字幕、自动粘贴；没有菜单栏图标，也没有 Dock 常驻图标。

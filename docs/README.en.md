@@ -10,7 +10,7 @@ Apple Silicon, macOS 26+, internet required. This initial build was checked on m
 
 Download the DMG from [Releases](https://github.com/HA7CH/voice-pill/releases/latest), drag **Voice Pill.app** into Applications, eject the disk and launch the installed app. Enable Accessibility and Microphone, accept the selected service's upload prompt, then restart after granting Accessibility. Set the globe key to **Do Nothing** in System Settings → Keyboard.
 
-This preview is ad-hoc signed, **not Apple-notarized**. If blocked, verify the source and use Privacy & Security → Open Anyway. Do not disable Gatekeeper globally. Updates may require regranting Accessibility.
+Version 0.2.5 and later are signed with Developer ID and notarized by Apple. Open the DMG, drag Voice Pill into Applications, eject the disk, then launch it from Applications. A first-download confirmation is normal. Updates may require regranting Accessibility.
 
 Place the cursor in a text field. Hold **Fn**, speak, release to paste. Codex and Doubao streaming backends are bundled. **Speech provider** switches the Fn and alternate-shortcut provider; the default is Codex, which requires an existing Codex ChatGPT login. **Ctrl+Fn** always uses Codex live captions. No Homebrew, FFmpeg or API key is needed. **Esc** cancels. **Ctrl+Option+Space** toggles recording. Reopen the app for settings, saved recordings / Retry, or Quit.
 

@@ -16,6 +16,7 @@ final class VoiceApplication: NSApplication {
 struct VoicePillApp {
     @MainActor static func main() {
         let app = VoiceApplication.shared
+        guard SingleInstance.acquire() else { return }
         let delegate = AppDelegate()
         app.delegate = delegate
         withExtendedLifetime(delegate) { app.run() }
